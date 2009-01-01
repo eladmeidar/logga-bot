@@ -1,0 +1,8 @@
+--- 
+Example: 
+  nick: logga
+  leaves: 
+  - Logga
+  rejoin: true
+  channel: "#logga"
+  server: irc.freenode.net

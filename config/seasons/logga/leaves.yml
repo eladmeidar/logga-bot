@@ -1,0 +1,5 @@
+Logga:
+  class: Logga
+  # authentication:
+  #   type: nick
+  #   nick: Radar
