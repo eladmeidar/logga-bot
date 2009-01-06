@@ -11,6 +11,9 @@ require 'libs/misc'
 require 'libs/speciator'
 require 'libs/authentication'
 
+gem 'activerecord', "2.1.2"
+require 'activerecord'
+
 AUTUMN_VERSION = "3.0 (7-4-08)"
 
 module Autumn # :nodoc:
@@ -127,10 +130,13 @@ module Autumn # :nodoc:
     # PREREQS: load_season_settings
     
     def load_databases
+      puts @season_dir
       db_file = "#{@season_dir}/database.yml"
-      if not File.exist? db_file then
+      if !File.exist?(db_file)
         $NO_DATABASE = true
-        return
+      else
+        file = YAML::load(File.open(db_file, 'r'))
+        ActiveRecord::Base.establish_connection(file[file.keys.first])
       end
 #      gem 'extlib', '=0.9.8'
     end

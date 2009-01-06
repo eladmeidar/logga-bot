@@ -1,10 +1,6 @@
 # Controller for the logga leaf.
-gem 'activerecord', "2.1.2"
-require 'activerecord'
 
-ActiveRecord::Base.establish_connection(YAML::load(File.open("config/seasons/logga/database.yml", "r+"))["loglibrary"])
 class Controller < Autumn::Leaf
-  EXCLUSIONS = ["gg", "google"]
     
   def who_command(stem, sender, reply_to, msg)
     if authorized?(sender[:nick])
@@ -176,8 +172,12 @@ class Controller < Autumn::Leaf
   def google(host, stem, sender, msg, reply_to, opts)
     return unless authorized?(sender[:nick])
     message = "#{host}?q=#{msg.split(" ").join("+")}"
-    message = opts[:directed_at] + ": #{message}" if opts[:directed_at]
-    stem.message(message,reply_to)
+    if opts[:directed_at]
+      message = opts[:directed_at] + ": #{message}" 
+      stem.message(message)
+    else
+      return message
+    end
   end
   
   def i_am_a_bot

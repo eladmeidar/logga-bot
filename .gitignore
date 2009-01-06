@@ -1,5 +1,5 @@
-config/seasons/helpa/database.yml
-config/seasons/helpa/stems.yml
+config/seasons/*/database.yml
+config/seasons/*/stems.yml
 log/*
 tmp/*
 doc/*
