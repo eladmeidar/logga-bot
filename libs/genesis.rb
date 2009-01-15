@@ -130,7 +130,6 @@ module Autumn # :nodoc:
     # PREREQS: load_season_settings
     
     def load_databases
-      puts @season_dir
       db_file = "#{@season_dir}/database.yml"
       if !File.exist?(db_file)
         $NO_DATABASE = true

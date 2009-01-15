@@ -1,5 +1,3 @@
 Logga:
   class: Logga
-  # authentication:
-  #   type: nick
-  #   nick: Radar
+  respond_to_private_messages: true

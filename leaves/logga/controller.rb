@@ -214,7 +214,7 @@ class Controller < Autumn::Leaf
     User.find_by_login(nick.downcase)
   end
 
-  def check_for_new_day
+  def check_for_new_day_filter
     @day = Day.find_or_create_by_date(Date.today) if @today!=Date.today
     @today = Date.today
     @day.increment!("chats_count")
@@ -226,21 +226,6 @@ class Controller < Autumn::Leaf
 
   def find_or_create_hostname(hostname, person)
     person.hostnames << Hostname.find_or_create_by_hostname(hostname)
-  end
-  
-  def did_receive_private_message(stem, sender, message)
-    command = /^!(.*?)\s(.*?)$/.match(message)
-    if command
-      # Private lookup.
-      if command[1] == "lookup"
-        lookup_command(stem, sender, sender[:nick], command[2])
-        # Send stuff to a designated channel.
-      elsif command[1] == "say"
-        parts = command[2].split(" ")
-        channel = parts.first
-        stem.message(parts[1..-1].join(" "), channel)
-      end
-    end
   end
 
   def did_receive_channel_message(stem, sender, channel, message) 
