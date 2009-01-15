@@ -252,6 +252,7 @@ class Controller < Autumn::Leaf
      end
 
      # Log Chat Line
+     puts "Creating chat line..."
      chat = person.chats.create(:channel => channel, :message => message, :message_type => "message", :other_person => other_person)
 
      ## Did the person thank another person?
