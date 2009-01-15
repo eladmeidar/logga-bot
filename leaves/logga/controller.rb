@@ -214,7 +214,7 @@ class Controller < Autumn::Leaf
     User.find_by_login(nick.downcase)
   end
 
-  def check_for_new_day_filter
+  def check_for_new_day_filter(host, stem, sender, msg, reply_to, opts)
     @day = Day.find_or_create_by_date(Date.today) if @today!=Date.today
     @today = Date.today
     @day.increment!("chats_count")
