@@ -3,6 +3,11 @@
 class Controller < Autumn::Leaf
   
   before_filter :check_for_new_day
+  
+  def did_start_up
+    @classes = File.readlines("leaves/logga/classes").map { |line| line.split(" ")}
+    @methods = File.readlines("leaves/logga/methods").map { |line| line.split(" ")}
+  end
       
   def who_command(stem, sender, reply_to, msg)
     if authorized?(sender[:nick])
@@ -74,119 +79,130 @@ class Controller < Autumn::Leaf
   end
   
   def lookup_command(stem, sender, reply_to, msg, opts={})
-    return if msg.blank?
-      parts = msg.split(" ") if msg.include?(" ")
-      parts ||= msg.split("#") if msg.include?("#")
-      parts ||= msg.gsub(/\(.*?\)/,'').split(".") if msg.include?(".")
-      parts ||= [msg]
-      @parts = parts
-      @sender = sender
-      @stem = stem
-      @reply_to = reply_to
-    
-    # Is the first word a constant?
-    if /^[A-Z]/.match(parts.first)
-      constant = Constant.find_by_name(parts.first)
-      constant ||= Constant.find_by_name(parts.first + "::ClassMethods")
-      if constant
-        entry = constant.entries.find_by_name(parts.last)
-        if entry
-          constant.increment!("count")
-          entry.increment!("count")
-          message = "#{constant.name}##{entry.name}: #{entry.url}"
-          message = send_lookup_message(stem, message, reply_to, opts[:directed_at])
-        else
-          if parts.last != parts.first
-            entries = Entry.find_all_by_name(parts.last)
-            if entries.empty?
-              stem.message("Could not find any entry with the name #{parts.last} anywhere in the API.", sender[:nick])
-            else
-              classes_for(entries)
-            end
-          else
-            constant.increment!("count")
-            message = "#{constant.name}: #{constant.url}"
-            send_lookup_message(stem, message, reply_to, opts[:directed_at])
-          end
-        end      
-      # When they specify an invalid constant (perhaps a partial name) and a valid entry.
-      elsif parts.first != parts.last
-        entries = Entry.find_all_by_name(parts.last)
-        classes_for(entries)
-      # When they specify an invalid constant AND an invalid entry.
-      else
-        stem.message("Could not find constant #{parts.first} or #{parts.first}::ClassMethods in the API!", sender[:nick])
-      end
-    else
-      # The first word is a method then
-      entries = Entry.find_all_by_name(parts.first)
-      if entries.size == 1
-        entry = entries.first  
-        constant = entry.constant
-        constant.increment!("count")
-        entry.increment!("count")
-        message = "#{constant.name}##{entry.name}: #{entry.url}"
-        message = send_lookup_message(stem, message, reply_to, opts[:directed_at])
-      elsif entries.size > 1
-        classes_for(entries) 
-
-      else
-        stem.message("Could not find any entry with the name #{parts.last} anywhere in the API.", sender[:nick])
-      end
-    end
+    msg = msg.split(" ")[0..-1].map { |a| a.split("#") }.flatten!
+    # It's a constant! Oh... and there's nothing else in the string!
+    if /^[A-Z]/.match(msg.first) && msg.size == 1
+     object = find_constant(stem, sender, reply_to, msg.first)
+     # It's a method!
+     else
+       # Right, so they only specified one argument. Therefore, we look everywhere.
+       if msg.first == msg.last
+         object = find_method(stem, sender, reply_to, msg)
+       # Left, so they specified two arguments. First is probably a constant, so let's find that!
+       else
+         object = find_method(stem, sender, reply_to, msg.last, msg.first)
+       end  
+    end 
   end
   
+  
+  def find_constant(stem, sender, reply_to, name, entry=nil, opts={})
+    # Find by specific name.
+    constants = @classes.select { |c| c.first == name }
+    # Find by name beginning with <blah>.
+    constants = @classes.select { |c| /^#{name}.*/.match(c.first) } if constants.empty?  
+    # Find by name containing letters of <blah> in order.
+    constants = @classes.select { |c| Regexp.new(name.split("").join(".*")).match(c.first) } if constants.empty?
+    if constants.size > 1
+      # Narrow it down to the constants that only contain the entry we are looking for.
+      if !entry.nil?
+        constants = constants.select { |constant| @methods.select { |m| m.first == entry && /#{entry} (#{constant.first})/.match([m.first, m[1]].join(" ")) } }
+        return [constants, constants.size]
+      else
+        display_constants(stem, sender, reply_to, constants, opts={})
+      end
+      if constants.size == 1
+        if entry.nil?
+          stem.message("#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{constant}")
+        else
+          return [[constants.first], 1]
+        end
+      elsif constants.size == 0
+        if entry
+          stem.message("There are no constants that match #{name} and contain #{entry}.", reply_to)
+        else
+          stem.message("There are no constants that match #{name}", reply_to)
+        end
+      else
+        return [constants, constants.size]
+      end
+    else
+      if entry.nil?
+       display_constants(stem, sender, reply_to, constants, opts={})
+      else
+        return [[constants.first], 1]
+      end
+    end
+  end  
+
+  # Find an entry.
+  # If the constant argument is passed, look it up within the scope of the constant.
+  def find_method(stem, sender, reply_to, name, constant=nil, opts={})  
+    if constant
+      constants, number = find_constant(stem, sender, reply_to, constant, name)
+    end
+    methods = [] 
+    methods = @methods.select { |m| m.first == name}
+    methods = @methods.select { |m| /#{name}.*/.match(m.first) } if methods.empty?
+    methods = @methods.select { |m| Regexp.new(name.split("").join(".*")).match(m.first) } if methods.empty?   
+    if constant
+      methods = methods.select { |m| /#{constants.join("|")}/.match(m[1]) }
+    end
+    count = 0
+    if methods.size == 1
+      method = methods.first
+      stem.message("#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{method[1].gsub(/[\(|\)]/, '')}##{method.first} #{method.last}", reply_to)
+    elsif methods.size <= 3
+      for method in methods
+        stem.message("#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{count += 1}. #{method[1].gsub(/[\(|\)]/, '')}##{method.first} #{method.last}", reply_to)
+      end
+      methods
+    else
+      stem.message("#{sender[:nick]}: Please be more specific.", reply_to)
+    end
+    return nil
+  end
+  
+  def display_constants(stem, sender, reply_to, constants, opts={})
+    count = 0
+    if constants.size == 1
+      constant = constants.first
+      message = "#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{constant.first} #{constant.last}"
+      stem.message(message, reply_to)
+    elsif constants.size <= 3
+      for constant in constants
+        message = "#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{count+=1}. #{constant.first} #{constant.last}"
+        stem.message(message, reply_to)
+      end
+    else
+      stem.message("#{sender[:nick]}: Please refine your query, we found #{constants.size} constants (threshold is 3).", reply_to)
+    end
+    return nil
+  end
+  
+  
   def google_command(stem, sender, reply_to, msg, opts={})
-    google("http://www.google.com/search", stem, sender, msg, reply_to, opts)
+    search("http://www.google.com/search", stem, sender, msg, reply_to, opts)
   end
   
   alias :g_command :google_command 
   
   def gg_command(stem, sender, reply_to, msg, opts={})
-    google("http://www.letmegooglethatforyou.com/", stem, sender, msg, reply_to, opts)
+    search("http://www.letmegooglethatforyou.com/", stem, sender, msg, reply_to, opts)
+  end
+  
+  def railscast_command(stem, sender, reply_to, msg, opts={})
+    search("http://railscasts.com/episodes", stem, sender, msg, reply_to, opts, "search")
   end
   
   private
   
-  # Lookup stuff
   
-  def send_lookup_message(stem, message, reply_to, directed_at=nil)
-    message = "#{directed_at}: " + message  if directed_at
-    stem.message(message, reply_to)  
-  end
-  
-  def update_api(name, url)
-    Api.find_or_create_by_name_and_url(name, url)
-    update_methods(Hpricot(Net::HTTP.get(URI.parse("#{url}/fr_method_index.html"))), url)
-    update_classes(Hpricot(Net::HTTP.get(URI.parse("#{url}/fr_class_index.html"))), url)
-  end
-  
-  def update_methods(doc, prefix)
-    doc.search("a").each do |a|
-      names = a.inner_html.split(" ")
-      method = names[0]
-      name = names[1].gsub(/[\(|\)]/, "")
-      # The same constant can be defined twice in different APIs, be wary!
-      url = prefix + "/classes/" + name.gsub("::", "/") + ".html"
-      constant = Constant.find_or_create_by_name_and_url(name, url)
-      constant.entries.create!(:name => method, :url => prefix + "/" + a["href"])
-    end
-  end
-  
-  def update_classes(doc, prefix)
-    doc.search("a").each do |a|
-      constant = Constant.find_or_create_by_name_and_url(a.inner_html, a["href"])
-    end
-  end
-  
-  # Ye olde Google.
-  
-  def google(host, stem, sender, msg, reply_to, opts)
-    return unless authorized?(sender[:nick])
-    message = "#{host}?q=#{msg.split(" ").join("+")}"
+  def search(host, stem, sender, msg, reply_to, opts, query_parameter="q")
+    message = "#{host}?#{query_parameter}=#{msg.split(" ").join("+")}"
     if opts[:directed_at]
       message = opts[:directed_at] + ": #{message}" 
-      stem.message(message)
+      stem.message(message, reply_to)
     else
       return message
     end
@@ -252,7 +268,6 @@ class Controller < Autumn::Leaf
      end
 
      # Log Chat Line
-     puts "Creating chat line..."
      chat = person.chats.create(:channel => channel, :message => message, :message_type => "message", :other_person => other_person)
 
      ## Did the person thank another person?
