@@ -145,8 +145,10 @@ class Controller < Autumn::Leaf
     methods = @methods.select { |m| m.first == name}
     methods = @methods.select { |m| /#{name}.*/.match(m.first) } if methods.empty?
     methods = @methods.select { |m| Regexp.new(name.split("").join(".*")).match(m.first) } if methods.empty?   
+    
     if constant
-      methods = methods.select { |m| /#{constants.join("|")}/.match(m[1]) }
+      constants.map! { |c| "\(#{c.first}\)"}
+      methods = methods.select { |m| constants.include?(m[1])}
     end
     count = 0
     if methods.size == 1
