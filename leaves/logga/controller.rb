@@ -82,15 +82,15 @@ class Controller < Autumn::Leaf
     msg = msg.split(" ")[0..-1].map { |a| a.split("#") }.flatten!
     # It's a constant! Oh... and there's nothing else in the string!
     if /^[A-Z]/.match(msg.first) && msg.size == 1
-     object = find_constant(stem, sender, reply_to, msg.first)
+     object = find_constant(stem, sender, reply_to, msg.first, opts)
      # It's a method!
      else
        # Right, so they only specified one argument. Therefore, we look everywhere.
        if msg.first == msg.last
-         object = find_method(stem, sender, reply_to, msg)
+         object = find_method(stem, sender, reply_to, msg, opts)
        # Left, so they specified two arguments. First is probably a constant, so let's find that!
        else
-         object = find_method(stem, sender, reply_to, msg.last, msg.first)
+         object = find_method(stem, sender, reply_to, msg.last, msg.first, opts)
        end  
     end 
   end
