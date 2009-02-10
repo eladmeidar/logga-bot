@@ -56,6 +56,7 @@ module Autumn
       # password").
       
       def unauthorized
+        "You must be an administrator for this bot to do that."
       end
     end
     

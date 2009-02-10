@@ -148,6 +148,8 @@ module Autumn
   # initialization options; see initialize.
   
   class Leaf
+    include Anise::Annotation
+    
     # Default for the +command_prefix+ init option.
     DEFAULT_COMMAND_PREFIX = '!'
     @@view_alias = Hash.new { |h,k| k }
@@ -246,8 +248,8 @@ module Autumn
           gained_privileges(stem, arguments[:mode]) { |prop| someone_did_gain_privilege stem, arguments[:channel], arguments[:parameter], prop, sender }
           lost_privileges(stem, arguments[:mode]) { |prop| someone_did_lose_privilege stem, arguments[:channel], arguments[:parameter], prop, sender }
         else
-          gained_properties(stem, arguments[:mode]) { |prop| channel_did_gain_property stem, arguments[:channel], prop, arguments, sender }
-          lost_properties(stem, arguments[:mode]) { |prop| channel_did_lose_property stem, arguments[:channel], prop, arguments, sender }
+          gained_properties(stem, arguments[:mode]) { |prop| channel_did_gain_property stem, arguments[:channel], prop, arguments[:parameter], sender }
+          lost_properties(stem, arguments[:mode]) { |prop| channel_did_lose_property stem, arguments[:channel], prop, arguments[:parameter], sender }
         end
       end
     end
@@ -400,7 +402,7 @@ module Autumn
         options[:only] = [ options[:only] ]
       end
       if options[:except] and not options[:except].kind_of? Array then
-        options[:except] = [ options[:only] ]
+        options[:except] = [ options[:except] ]
       end
       write_inheritable_array 'before_filters', [ [ filter.to_sym, options ] ]
     end
@@ -427,7 +429,7 @@ module Autumn
         options[:only] = [ options[:only] ]
       end
       if options[:except] and not options[:except].kind_of? Array then
-        options[:except] = [ options[:only] ]
+        options[:except] = [ options[:except] ]
       end
       write_inheritable_array 'after_filters', [ [ filter.to_sym, options ] ]
     end
@@ -685,9 +687,7 @@ module Autumn
       return true if @authenticator.nil?
       # Any method annotated as protected is authenticated unconditionally
       if not self.class.ann("#{cmd}_command".to_sym, :protected) then
-        # Otherwise, we only authenticate if it's listed as protected in the config
-        return true if options[:authentication]['only'] and not options[:authentication]['only'].include? cmd
-        return true if options[:authentication]['except'] and options[:authentication]['except'].include? cmd
+        return true
       end
       if @authenticator.authenticate(stem, channel, sender, self) then
         return true

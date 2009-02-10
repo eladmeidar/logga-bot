@@ -6,12 +6,11 @@ require 'rubygems'
 require 'yaml'
 require 'logger'
 require 'facets'
-require 'facets/annotations'
+require 'facets/random'
+require 'anise'
 require 'libs/misc'
 require 'libs/speciator'
 require 'libs/authentication'
-
-gem 'activerecord', "2.1.2"
 require 'activerecord'
 
 AUTUMN_VERSION = "3.0 (7-4-08)"
@@ -53,7 +52,7 @@ module Autumn # :nodoc:
   
     def load_global_settings
       begin
-        config.global YAML.load(File.open('config/global.yml'))
+        config.global YAML.load(File.open("#{AL_ROOT}/config/global.yml"))
       rescue SystemCallError
         raise "Couldn't find your global.yml file."
       end
@@ -66,7 +65,7 @@ module Autumn # :nodoc:
     # PREREQS: load_global_settings
   
     def load_season_settings
-      @season_dir = "config/seasons/#{config.global :season}"
+      @season_dir = "#{AL_ROOT}/config/seasons/#{config.global :season}"
       raise "The current season doesn't have a directory." unless File.directory? @season_dir
       begin
         config.season YAML.load(File.open("#{@season_dir}/season.yml"))
@@ -113,7 +112,7 @@ module Autumn # :nodoc:
     # PREREQS: load_libraries
     
     def load_daemon_info
-      Dir.glob('resources/daemons/*.yml').each do |yml_file|
+      Dir.glob("#{AL_ROOT}/resources/daemons/*.yml").each do |yml_file|
         yml = YAML.load(File.open(yml_file, 'r'))
         Daemon.new File.basename(yml_file, '.yml'), yml
       end
@@ -122,7 +121,7 @@ module Autumn # :nodoc:
     # Loads Ruby code in the shared directory.
     
     def load_shared_code
-      Dir.glob('shared/**/*.rb').each { |lib| load lib }
+      Dir.glob("#{AL_ROOT}/shared/**/*.rb").each { |lib| load lib }
     end
     
     # Creates connections to databases using the DataMapper gem.
@@ -131,13 +130,16 @@ module Autumn # :nodoc:
     
     def load_databases
       db_file = "#{@season_dir}/database.yml"
-      if !File.exist?(db_file)
+      if not File.exist? db_file then
         $NO_DATABASE = true
-      else
-        file = YAML::load(File.open(db_file, 'r'))
-        ActiveRecord::Base.establish_connection(file[file.keys.first])
+        return
       end
-#      gem 'extlib', '=0.9.8'
+      
+      dbconfig = YAML.load(File.open(db_file, 'r'))
+      ActiveRecord::Base.establish_connection(dbconfig[dbconfig.keys.first])
+      # dbconfig.rekey(&:to_sym).each do |db, config|
+      #       # DataMapper.setup(db, config.kind_of?(Hash) ? config.rekey(&:to_sym) : config)
+      #     end
     end
     
     # Invokes the Foliater.load method. Spawns a new thread to oversee the
@@ -181,7 +183,7 @@ module Autumn # :nodoc:
     private
     
     def log_name
-      "log/#{config.global(:season)}.log"
+      "#{AL_ROOT}/log/#{config.global(:season)}.log"
     end
   end
 end

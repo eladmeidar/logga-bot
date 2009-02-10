@@ -197,17 +197,31 @@ class Controller < Autumn::Leaf
     search("http://railscasts.com/episodes", stem, sender, msg, reply_to, opts, "search")
   end
   
+  def githubs_command(stem, sender, reply_to, msg, opts={})
+    search("http://github.com/search", stem, sender, msg, reply_to, opts)
+  end
+  
+  def github_command(stem, sender, reply_to, msg, opts={})
+    parts = msg.split(" ")
+    message = "http://github.com/#{parts[0]}/#{parts[1]}/tree/#{parts[2].nil? ? 'master' : parts[2]}"
+    message += "/#{parts[3..-1].join("/")}" if !parts[3].nil?
+    direct_at(stem, reply_to, message, opts[:directed_at])
+  end
+  
   private
   
-  
-  def search(host, stem, sender, msg, reply_to, opts, query_parameter="q")
-    message = "#{host}?#{query_parameter}=#{msg.split(" ").join("+")}"
-    if opts[:directed_at]
-      message = opts[:directed_at] + ": #{message}" 
+  def direct_at(stem, reply_to, message, who=nil)
+    if who
+      message = who + ": #{message}" 
       stem.message(message, reply_to)
     else
       return message
     end
+  end
+  
+  def search(host, stem, sender, msg, reply_to, opts, query_parameter="q")
+    message = "#{host}?#{query_parameter}=#{msg.split(" ").join("+")}"
+    direct_at(stem, reply_to, message, opts[:directed_at])
   end
   
   # I, Robot.
