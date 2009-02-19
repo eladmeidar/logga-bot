@@ -310,7 +310,7 @@ class Controller < Autumn::Leaf
    def someone_did_join_channel(stem, sender, channel)
      person = find_or_create_person(sender[:nick])
      find_or_create_hostname(sender[:host], person)
-     person.chats.create(:channel => channel, :message_type => "join")  unless person[:nick] == "logga"
+     person.chats.create(:channel => channel, :message_type => "join")  unless sender[:nick] == "logga"
    end
 
    def someone_did_leave_channel(stem, sender, channel)
