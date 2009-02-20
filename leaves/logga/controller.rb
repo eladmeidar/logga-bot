@@ -73,21 +73,44 @@ class Controller < Autumn::Leaf
     # Ruby on Rails Methods
     update_api("Rails", "http://api.rubyonrails.org")
     update_api("Ruby", "http://www.ruby-doc.org/core")
-    
     stem.message("Updated API index! Use the !lookup <method> or !lookup <class> <method> to find what you're after", sender[:nick])
     return nil
   end
+  
+  def update_api(name, url)
+      Api.find_or_create_by_name_and_url(name, url)
+      update_methods(Hpricot(Net::HTTP.get(URI.parse("#{url}/fr_method_index.html"))), url)
+      update_classes(Hpricot(Net::HTTP.get(URI.parse("#{url}/fr_class_index.html"))), url)
+    end
+
+    def update_methods(doc, prefix)
+      doc.search("a").each do |a|
+        names = a.inner_html.split(" ")
+        method = names[0]
+        name = names[1].gsub(/[\(|\)]/, "")
+        # The same constant can be defined twice in different APIs, be wary!
+        url = prefix + "/classes/" + name.gsub("::", "/") + ".html"
+        constant = Constant.find_or_create_by_name_and_url(name, url)
+        constant.entries.create!(:name => method, :url => prefix + "/" + a["href"])
+      end
+    end
+
+    def update_classes(doc, prefix)
+      doc.search("a").each do |a|
+        constant = Constant.find_or_create_by_name_and_url(a.inner_html, a["href"])
+      end
+    end
   
   def lookup_command(stem, sender, reply_to, msg, opts={})
     msg = msg.split(" ")[0..-1].map { |a| a.split("#") }.flatten!
     # It's a constant! Oh... and there's nothing else in the string!
     if /^[A-Z]/.match(msg.first) && msg.size == 1
-     object = find_constant(stem, sender, reply_to, msg.first, opts)
+     object = find_constant(stem, sender, reply_to, msg.first, nil, opts)
      # It's a method!
      else
        # Right, so they only specified one argument. Therefore, we look everywhere.
        if msg.first == msg.last
-         object = find_method(stem, sender, reply_to, msg, opts)
+         object = find_method(stem, sender, reply_to, msg, nil, opts)
        # Left, so they specified two arguments. First is probably a constant, so let's find that!
        else
          object = find_method(stem, sender, reply_to, msg.last, msg.first, opts)
@@ -95,18 +118,20 @@ class Controller < Autumn::Leaf
     end 
   end
   
+  def for_sql(string)
+    string
+  end
+  
   
   def find_constant(stem, sender, reply_to, name, entry=nil, opts={})
     # Find by specific name.
-    constants = @classes.select { |c| c.first == name }
+    constants = Constant.find_all_by_name(name)
     # Find by name beginning with <blah>.
-    constants = @classes.select { |c| /^#{name}.*/.match(c.first) } if constants.empty?  
-    # Find by name containing letters of <blah> in order.
-    constants = @classes.select { |c| Regexp.new(name.split("").join(".*")).match(c.first) } if constants.empty?
+    constants = Constant.all(:conditions => ["name LIKE ?", name + "%"]) if constants.empty?
     if constants.size > 1
       # Narrow it down to the constants that only contain the entry we are looking for.
       if !entry.nil?
-        constants = constants.select { |constant| @methods.select { |m| m.first == entry && /#{entry} (#{constant.first})/.match([m.first, m[1]].join(" ")) } }
+        constants = constants.select { |constant| !constant.methods.find_by_name(entry).nil? }
         return [constants, constants.size]
       else
         display_constants(stem, sender, reply_to, constants, opts={})
@@ -142,21 +167,20 @@ class Controller < Autumn::Leaf
       constants, number = find_constant(stem, sender, reply_to, constant, name)
     end
     methods = [] 
-    methods = @methods.select { |m| m.first == name}
-    methods = @methods.select { |m| /#{name}.*/.match(m.first) } if methods.empty?
-    methods = @methods.select { |m| Regexp.new(name.split("").join(".*")).match(m.first) } if methods.empty?   
+    methods = Entry.find_all_by_name(name)
+    methods = Entry.all(:conditions => ["name LIKE ?%", name]) if methods.empty?
+    methods = Entry.find_by_sql("select * from entries where name LIKE '%#{for_sql(name.split("").join("%"))}%'") if methods.empty?
     
     if constant
-      constants.map! { |c| "\(#{c.first}\)"}
-      methods = methods.select { |m| constants.include?(m[1])}
+      methods = methods.select { |m| constants.select { |c| c.methods.include?(m) } }
     end
     count = 0
     if methods.size == 1
       method = methods.first
-      stem.message("#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{method[1].gsub(/[\(|\)]/, '')}##{method.first} #{method.last}", reply_to)
+      stem.message("#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} (#{method.constant.name}) #{method.name} #{method.url}", reply_to)
     elsif methods.size <= 3
       for method in methods
-        stem.message("#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{count += 1}. #{method[1].gsub(/[\(|\)]/, '')}##{method.first} #{method.last}", reply_to)
+        stem.message("#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{count += 1}. (#{method.constant.name}) #{method.name} #{method.url}", reply_to)
       end
       methods
     else
@@ -167,13 +191,14 @@ class Controller < Autumn::Leaf
   
   def display_constants(stem, sender, reply_to, constants, opts={})
     count = 0
+    puts constants.size
     if constants.size == 1
       constant = constants.first
-      message = "#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{constant.first} #{constant.last}"
+      message = "#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{constant.name} #{constant.url}"
       stem.message(message, reply_to)
     elsif constants.size <= 3
       for constant in constants
-        message = "#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{count+=1}. #{constant.first} #{constant.last}"
+        message = "#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{count+=1}. #{constant.name} #{constant.url}"
         stem.message(message, reply_to)
       end
     else
