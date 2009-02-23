@@ -81,25 +81,25 @@ class Controller < Autumn::Leaf
       Api.find_or_create_by_name_and_url(name, url)
       update_methods(Hpricot(Net::HTTP.get(URI.parse("#{url}/fr_method_index.html"))), url)
       update_classes(Hpricot(Net::HTTP.get(URI.parse("#{url}/fr_class_index.html"))), url)
-    end
+  end
 
-    def update_methods(doc, prefix)
-      doc.search("a").each do |a|
-        names = a.inner_html.split(" ")
-        method = names[0]
-        name = names[1].gsub(/[\(|\)]/, "")
-        # The same constant can be defined twice in different APIs, be wary!
-        url = prefix + "/classes/" + name.gsub("::", "/") + ".html"
-        constant = Constant.find_or_create_by_name_and_url(name, url)
-        constant.entries.create!(:name => method, :url => prefix + "/" + a["href"])
-      end
+  def update_methods(doc, prefix)
+    doc.search("a").each do |a|
+      names = a.inner_html.split(" ")
+      method = names[0]
+      name = names[1].gsub(/[\(|\)]/, "")
+      # The same constant can be defined twice in different APIs, be wary!
+      url = prefix + "/classes/" + name.gsub("::", "/") + ".html"
+      constant = Constant.find_or_create_by_name_and_url(name, url)
+      constant.entries.create!(:name => method, :url => prefix + "/" + a["href"])
     end
+  end
 
-    def update_classes(doc, prefix)
-      doc.search("a").each do |a|
-        constant = Constant.find_or_create_by_name_and_url(a.inner_html, a["href"])
-      end
+  def update_classes(doc, prefix)
+    doc.search("a").each do |a|
+      constant = Constant.find_or_create_by_name_and_url(a.inner_html, prefix + "/" + a["href"])
     end
+  end
   
   def lookup_command(stem, sender, reply_to, msg, opts={})
     msg = msg.split(" ")[0..-1].map { |a| a.split("#") }.flatten!
@@ -125,7 +125,10 @@ class Controller < Autumn::Leaf
   
   def find_constant(stem, sender, reply_to, name, entry=nil, opts={})
     # Find by specific name.
+    puts name.inspect
+    puts Constant.find_by_name("Array").inspect
     constants = Constant.find_all_by_name(name)
+    puts constants.inspect
     # Find by name beginning with <blah>.
     constants = Constant.all(:conditions => ["name LIKE ?", name + "%"]) if constants.empty?
     # Find by fuzzy.
@@ -133,7 +136,7 @@ class Controller < Autumn::Leaf
     if constants.size > 1
       # Narrow it down to the constants that only contain the entry we are looking for.
       if !entry.nil?
-        constants = constants.select { |constant| !constant.methods.find_by_name(entry).nil? }
+        constants = constants.select { |constant| !constant.entries.find_by_name(entry).nil? }
         return [constants, constants.size]
       else
         display_constants(stem, sender, reply_to, constants, opts={})
@@ -170,13 +173,15 @@ class Controller < Autumn::Leaf
     end
     methods = [] 
     methods = Entry.find_all_by_name(name)
-    methods = Entry.all(:conditions => ["name LIKE ?%", name]) if methods.empty?
+    methods = Entry.all(:conditions => ["name LIKE ?", name + "%"]) if methods.empty?
     methods = Entry.find_by_sql("select * from entries where name LIKE '%#{for_sql(name.split("").join("%"))}%'") if methods.empty?
     
     if constant
-      methods = methods.select { |m| constants.select { |c| c.methods.include?(m) } }
+      puts "CONSTANT SPECIFI"
+      methods = methods.select { |m| constants.include?(m.constant) }
     end
     count = 0
+    puts methods.inspect
     if methods.size == 1
       method = methods.first
       stem.message("#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} (#{method.constant.name}) #{method.name} #{method.url}", reply_to)
