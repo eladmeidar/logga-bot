@@ -128,6 +128,8 @@ class Controller < Autumn::Leaf
     constants = Constant.find_all_by_name(name)
     # Find by name beginning with <blah>.
     constants = Constant.all(:conditions => ["name LIKE ?", name + "%"]) if constants.empty?
+    # Find by fuzzy.
+    constants = Constant.find_by_sql("select * from constants where name LIKE '%#{for_sql(name.split("").join("%"))}%'") if constants.empty?
     if constants.size > 1
       # Narrow it down to the constants that only contain the entry we are looking for.
       if !entry.nil?
