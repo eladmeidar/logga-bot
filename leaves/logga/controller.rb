@@ -127,15 +127,15 @@ class Controller < Autumn::Leaf
     # Find by specific name.
     puts name.inspect
     puts Constant.find_by_name("Array").inspect
-    constants = Constant.find_all_by_name(name)
+    constants = Constant.find_all_by_name(name, :include => "entries")
     # Find by name beginning with <blah>.
-    constants = Constant.all(:conditions => ["name LIKE ?", name + "%"]) if constants.empty?
+    constants = Constant.all(:conditions => ["name LIKE ?", name + "%"], :include => "entries") if constants.empty?
     # Find by fuzzy.
     constants = Constant.find_by_sql("select * from constants where name LIKE '%#{for_sql(name.split("").join("%"))}%'") if constants.empty?
     if constants.size > 1
       # Narrow it down to the constants that only contain the entry we are looking for.
       if !entry.nil?
-        constants = constants.select { |constant| puts constant.entries.inspect; !constant.entries.find_by_name(entry).nil? }
+        constants = constants.select { |constant| puts !constant.entries.find_by_name(entry).nil? }
         return [constants, constants.size]
       else
         display_constants(stem, sender, reply_to, constants, opts={})
