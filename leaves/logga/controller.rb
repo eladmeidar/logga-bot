@@ -169,8 +169,8 @@ class Controller < Autumn::Leaf
       constants, number = find_constant(stem, sender, reply_to, constant, name)
     end
     methods = [] 
-    methods = Entry.find_all_by_name(name)
-    methods = Entry.all(:conditions => ["name LIKE ?", name + "%"]) if methods.empty?
+    methods = Entry.find_all_by_name(name.to_s)
+    methods = Entry.all(:conditions => ["name LIKE ?", name.to_s + "%"]) if methods.empty?
     methods = Entry.find_by_sql("select * from entries where name LIKE '%#{for_sql(name.split("").join("%"))}%'") if methods.empty?
     
     if constant
