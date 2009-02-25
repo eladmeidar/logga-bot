@@ -125,8 +125,6 @@ class Controller < Autumn::Leaf
   
   def find_constant(stem, sender, reply_to, name, entry=nil, opts={})
     # Find by specific name.
-    puts name.inspect
-    puts Constant.find_by_name("Array").inspect
     constants = Constant.find_all_by_name(name, :include => "entries")
     # Find by name beginning with <blah>.
     constants = Constant.all(:conditions => ["name LIKE ?", name + "%"], :include => "entries") if constants.empty?
@@ -135,7 +133,7 @@ class Controller < Autumn::Leaf
     if constants.size > 1
       # Narrow it down to the constants that only contain the entry we are looking for.
       if !entry.nil?
-        constants = constants.select { |constant| puts !constant.entries.find_by_name(entry).nil? }
+        constants = constants.select { |constant| !constant.entries.find_by_name(entry).nil? }
         return [constants, constants.size]
       else
         display_constants(stem, sender, reply_to, constants, opts={})
@@ -179,7 +177,6 @@ class Controller < Autumn::Leaf
       methods = methods.select { |m| constants.include?(m.constant) }
     end
     count = 0
-    puts methods.inspect
     if methods.size == 1
       method = methods.first
       stem.message("#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} (#{method.constant.name}) #{method.name} #{method.url}", reply_to)
@@ -196,7 +193,6 @@ class Controller < Autumn::Leaf
   
   def display_constants(stem, sender, reply_to, constants, opts={})
     count = 0
-    puts constants.size
     if constants.size == 1
       constant = constants.first
       message = "#{opts[:directed_at] ? opts[:directed_at] + ":"  : ''} #{constant.name} #{constant.url}"
