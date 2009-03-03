@@ -334,6 +334,7 @@ class Controller < Autumn::Leaf
    end
 
    def someone_did_join_channel(stem, sender, channel)
+     return if sender.nil?
      person = find_or_create_person(sender[:nick])
      find_or_create_hostname(sender[:host], person)
      person.chats.create(:channel => channel, :message_type => "join")  unless sender[:nick] == "logga"
@@ -346,6 +347,7 @@ class Controller < Autumn::Leaf
    end
 
    def someone_did_quit(stem, sender, message)
+     return if sender.nil?
      person = find_or_create_person(sender[:nick])
      find_or_create_hostname(sender[:host], person)
      person.chats.create(:channel => nil, :message => message, :message_type => "quit")
