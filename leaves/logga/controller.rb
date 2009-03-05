@@ -136,7 +136,7 @@ class Controller < Autumn::Leaf
         constants = constants.select { |constant| !constant.entries.find_by_name(entry).nil? }
         return [constants, constants.size]
       else
-        display_constants(stem, sender, reply_to, constants, opts={})
+        display_constants(stem, sender, reply_to, constants, opts)
       end
       if constants.size == 1
         if entry.nil?
@@ -155,7 +155,7 @@ class Controller < Autumn::Leaf
       end
     else
       if entry.nil?
-       display_constants(stem, sender, reply_to, constants, opts={})
+       display_constants(stem, sender, reply_to, constants, opts)
       else
         return [[constants.first], 1]
       end
